@@ -1,7 +1,10 @@
 import { Glob, YAML } from "bun";
+import { join } from "node:path";
 import z from "zod";
 
 const proxyModeSchema = z.enum(["bypass", "block", "turnstile"]);
+
+export type ProxyMode = z.infer<typeof proxyModeSchema>;
 
 const routeSchema = z.object({
   methods: z
@@ -39,6 +42,32 @@ const configSchema = z
   });
 
 export type Config = z.infer<typeof configSchema>;
+
+export function buildTargetUrl(config: Config, pathname: string, search: string) {
+  const target = new URL(config.destinationUrl);
+  target.pathname = join(target.pathname, pathname);
+  target.search = search;
+
+  return target;
+}
+
+export function findMatchingConfig(configs: Config[], pathname: string) {
+  return [...configs]
+    .sort((left, right) => right.slug.length - left.slug.length)
+    .find((config) => pathname === `/${config.slug}` || pathname.startsWith(`/${config.slug}/`));
+}
+
+export function getProxyMode(config: Config, pathname: string, method: string): ProxyMode {
+  return (
+    config.routes.find((route) => {
+      if (route.methods !== undefined && route.methods !== method) {
+        return false;
+      }
+
+      return route.path.some((pattern) => new Bun.Glob(pattern).match(pathname));
+    })?.mode ?? config.defaultMode
+  );
+}
 
 export async function readConfigsFromDirectory(directory: string): Promise<Config[]> {
   const glob = new Glob("**/*.{yml,yaml}");
