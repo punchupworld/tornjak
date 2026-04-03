@@ -1,0 +1,31 @@
+{
+  "name": "tornjak",
+  "private": true,
+  "type": "module",
+  "module": "index.ts",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "oxlint . --fix",
+    "format": "oxfmt . --write",
+    "commitlint": "commitlint --edit .git/COMMIT_EDITMSG"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.43.0",
+    "oxlint": "^1.58.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "lint-staged": {
+    "**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}": [
+      "oxfmt --write",
+      "oxlint --fix"
+    ],
+    "**/*.{json,jsonc,json5,yml,yaml,md,mdx,html,css,scss,less,toml}": "oxfmt --write"
+  }
+}
