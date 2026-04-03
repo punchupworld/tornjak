@@ -1,0 +1,17 @@
+slug: admin-proxy
+destinationUrl: https://admin.example.com
+headers:
+  x-powered-by: tornjak
+  x-env: staging
+turnstileSecret: secret-admin
+defaultMode: block
+routes:
+  - methods: PUT
+    path:
+      - /admin/*
+      - /settings/*
+    mode: block
+  - methods: PATCH
+    path:
+      - /admin/users/*
+    mode: turnstile

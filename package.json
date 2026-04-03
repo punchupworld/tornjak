@@ -2,12 +2,16 @@
   "name": "tornjak",
   "private": true,
   "type": "module",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "scripts": {
     "prepare": "husky",
+    "dev": "bun run --watch src/index.ts",
     "lint": "oxlint . --fix",
     "format": "oxfmt . --write",
     "commitlint": "commitlint --edit .git/COMMIT_EDITMSG"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
