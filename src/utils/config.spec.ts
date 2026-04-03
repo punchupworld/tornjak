@@ -2,65 +2,71 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { Config } from "../../../src/utils/config";
+
+import type { Config } from "./config";
 import {
   buildTargetUrl,
   findMatchingConfig,
   getProxyMode,
   readConfigsFromDirectory,
-} from "../../../src/utils/config";
+} from "./config";
 
 describe("readConfigsFromDirectory", () => {
   test("reads and validates all yaml configs in a directory", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
+    const configs = await readConfigsFromDirectory("mocks/configs");
 
     expect(configs).toHaveLength(2);
 
-    expect(configs).toContainEqual({
-      slug: "app-proxy",
+    expect(configs.map((config) => config.slug).sort()).toEqual(["admin-proxy", "app-proxy"]);
+
+    const appProxy = configs.find((config) => config.slug === "app-proxy");
+    const adminProxy = configs.find((config) => config.slug === "admin-proxy");
+
+    expect(appProxy).toMatchObject({
       destinationUrl: "https://example.com",
+      defaultMode: "bypass",
+      turnstileSecret: "secret-basic",
       headers: {
         "x-powered-by": "tornjak",
         "x-env": "test",
       },
-      turnstileSecret: "secret-basic",
-      defaultMode: "bypass",
-      routes: [
-        {
-          methods: "GET",
-          path: ["/api/*"],
-          mode: "bypass",
-        },
-        {
-          methods: "POST",
-          path: ["/auth/*"],
-          mode: "turnstile",
-        },
-      ],
     });
 
-    expect(configs).toContainEqual({
-      slug: "admin-proxy",
+    expect(appProxy?.routes).toEqual([
+      {
+        methods: "GET",
+        path: ["/api/*"],
+        mode: "bypass",
+      },
+      {
+        methods: "POST",
+        path: ["/auth/*"],
+        mode: "turnstile",
+      },
+    ]);
+
+    expect(adminProxy).toMatchObject({
       destinationUrl: "https://admin.example.com",
+      defaultMode: "block",
+      turnstileSecret: "secret-admin",
       headers: {
         "x-powered-by": "tornjak",
         "x-env": "staging",
       },
-      turnstileSecret: "secret-admin",
-      defaultMode: "block",
-      routes: [
-        {
-          methods: "PUT",
-          path: ["/admin/*", "/settings/*"],
-          mode: "block",
-        },
-        {
-          methods: "PATCH",
-          path: ["/admin/users/*"],
-          mode: "turnstile",
-        },
-      ],
     });
+
+    expect(adminProxy?.routes).toEqual([
+      {
+        methods: "PUT",
+        path: ["/admin/*", "/settings/*"],
+        mode: "block",
+      },
+      {
+        methods: "PATCH",
+        path: ["/admin/users/*"],
+        mode: "turnstile",
+      },
+    ]);
   });
 
   test("throws when a turnstile route is missing turnstileSecret", async () => {

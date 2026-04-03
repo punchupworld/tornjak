@@ -1,5 +1,6 @@
-import { expect, test, describe } from "bun:test";
-import { getTurnstileToken } from "../../src/utils/turnstile";
+import { describe, expect, test } from "bun:test";
+
+import { getTurnstileToken } from "./turnstile";
 
 describe("getTurnstileToken", () => {
   test("reads the configured headers before the query string", () => {

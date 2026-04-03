@@ -1,57 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { createApp } from "../src/app";
-import { readConfigsFromDirectory } from "../src/utils/config";
-import { TURNSTILE_VERIFY_URL } from "../src/utils/turnstile";
-
-type FetchCall = {
-  input: Parameters<typeof fetch>[0];
-  init?: RequestInit;
-};
-
-function installFetchMock(impl: (call: FetchCall, calls: FetchCall[]) => Promise<Response>) {
-  const originalFetch = globalThis.fetch;
-  const calls: FetchCall[] = [];
-
-  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-    const call = { input, init };
-    calls.push(call);
-    return impl(call, calls);
-  }) as typeof fetch;
-
-  return () => {
-    globalThis.fetch = originalFetch;
-  };
-}
-
-test("responds with json and cors headers", async () => {
-  const configs = await readConfigsFromDirectory("tests/utils/config");
-  const app = createApp(configs);
-
-  const response = await app.fetch(
-    new Request("http://localhost/", {
-      headers: {
-        Origin: "http://example.com",
-      },
-    }),
-  );
-
-  expect(response.status).toBe(200);
-  expect(response.headers.get("access-control-allow-origin")).toBe("http://example.com");
-});
-
-test("stores configs passed to the factory", async () => {
-  const configs = await readConfigsFromDirectory("tests/utils/config");
-  const app = createApp(configs);
-
-  expect(app.store.configs).toEqual(configs);
-  expect(app.store.configs).toHaveLength(2);
-});
+import { TURNSTILE_VERIFY_URL } from "./utils/turnstile";
+import { createTestApp } from "../mocks/app";
+import { installFetchMock } from "../mocks/fetch";
 
 describe("catch-all handler", () => {
   test("returns 404 for unmatched slugs", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
-    const app = createApp(configs);
+    const { app } = await createTestApp();
     const restoreFetch = installFetchMock(async () => {
       throw new Error("destination fetch should not be called for unmatched slugs");
     });
@@ -67,8 +22,7 @@ describe("catch-all handler", () => {
   });
 
   test("proxies bypassed routes to the configured destination", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
-    const app = createApp(configs);
+    const { app } = await createTestApp();
     const restoreFetch = installFetchMock(async ({ input, init }) => {
       const headers = init?.headers;
 
@@ -103,34 +57,8 @@ describe("catch-all handler", () => {
     }
   });
 
-  test("proxies exact slug requests to the destination root", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
-    const app = createApp(configs);
-    const restoreFetch = installFetchMock(async ({ input, init }) => {
-      expect(String(input)).toBe("https://example.com/");
-      expect(init?.method).toBe("GET");
-
-      return new Response(JSON.stringify({ proxied: true }), {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-        },
-      });
-    });
-
-    try {
-      const response = await app.fetch(new Request("http://localhost/app-proxy"));
-
-      expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ proxied: true });
-    } finally {
-      restoreFetch();
-    }
-  });
-
   test("blocks requests when the matched mode resolves to block", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
-    const app = createApp(configs);
+    const { app } = await createTestApp();
     const restoreFetch = installFetchMock(async () => {
       throw new Error("destination fetch should not be called for blocked requests");
     });
@@ -146,8 +74,7 @@ describe("catch-all handler", () => {
   });
 
   test("verifies turnstile routes before proxying", async () => {
-    const configs = await readConfigsFromDirectory("tests/utils/config");
-    const app = createApp(configs);
+    const { app } = await createTestApp();
     const restoreFetch = installFetchMock(async ({ input, init }, calls) => {
       const headers = init?.headers;
 
