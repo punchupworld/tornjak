@@ -1,9 +1,10 @@
 import { createApp } from "./app";
-import { readConfigsFromDirectory } from "./utils/config";
+import { formatConfigsSummary, readConfigsFromDirectory } from "./utils/config";
 
 const configs = await readConfigsFromDirectory("configs");
-const app = createApp(configs);
+console.log(formatConfigsSummary(configs));
 
+const app = createApp(configs);
 app.listen(Number(Bun.env.PORT ?? 3000));
 
-console.log(`Tornjak is running on port ${app.server?.port}`);
+console.log(`Tornjak is running on http://localhost:${app.server?.port}`);

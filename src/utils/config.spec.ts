@@ -6,10 +6,47 @@ import { tmpdir } from "node:os";
 import type { Config } from "./config";
 import {
   buildTargetUrl,
+  formatConfigsSummary,
   findMatchingConfig,
   getProxyMode,
   readConfigsFromDirectory,
 } from "./config";
+
+describe("formatConfigsSummary", () => {
+  test("summarizes multiple configs by count and slug", () => {
+    expect(
+      formatConfigsSummary([
+        {
+          slug: "app-proxy",
+          destinationUrl: "https://example.com",
+          headers: {},
+          defaultMode: "bypass",
+          routes: [{ path: ["/api/*"], mode: "bypass" }],
+        },
+        {
+          slug: "admin-proxy",
+          destinationUrl: "https://admin.example.com",
+          headers: {},
+          defaultMode: "block",
+          routes: [
+            { path: ["/admin/*"], mode: "block" },
+            { path: ["/admin/users/*"], mode: "turnstile" },
+          ],
+        },
+      ]),
+    ).toBe(
+      [
+        "Loaded 2 configs:",
+        "- app-proxy | destination: https://example.com | routes: 1 route (bypass)",
+        "- admin-proxy | destination: https://admin.example.com | routes: 2 routes (block, turnstile)",
+      ].join("\n"),
+    );
+  });
+
+  test("handles an empty config list", () => {
+    expect(formatConfigsSummary([])).toBe("Loaded 0 configs: none");
+  });
+});
 
 describe("readConfigsFromDirectory", () => {
   test("reads and validates all yaml configs in a directory", async () => {

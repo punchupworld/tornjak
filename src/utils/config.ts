@@ -43,6 +43,41 @@ const configSchema = z
 
 export type Config = z.infer<typeof configSchema>;
 
+export async function readConfigsFromDirectory(directory: string): Promise<Config[]> {
+  const glob = new Glob("**/*.{yml,yaml}");
+  const configs: Config[] = [];
+
+  for await (const path of glob.scan({ cwd: directory, absolute: true })) {
+    const content = await Bun.file(path).text();
+    const parsed = YAML.parse(content);
+    configs.push(configSchema.parse(parsed));
+  }
+
+  return configs;
+}
+
+export function formatConfigsSummary(configs: ReadonlyArray<Config>) {
+  const countLabel = configs.length === 1 ? "config" : "configs";
+
+  if (configs.length === 0) {
+    return `Loaded 0 ${countLabel}: none`;
+  }
+
+  return [
+    `Loaded ${configs.length} ${countLabel}:`,
+    ...configs.map(
+      (config) =>
+        `- ${config.slug} | destination: ${config.destinationUrl} | routes: ${formatRouteSummary(config.routes)}`,
+    ),
+  ].join("\n");
+}
+
+function formatRouteSummary(routes: Config["routes"]) {
+  const routeModes = [...new Set(routes.map((route) => route.mode))];
+
+  return `${routes.length} ${routes.length === 1 ? "route" : "routes"}${routeModes.length > 0 ? ` (${routeModes.join(", ")})` : ""}`;
+}
+
 export function buildTargetUrl(config: Config, pathname: string, search: string) {
   const target = new URL(config.destinationUrl);
   target.pathname = join(target.pathname, pathname);
@@ -67,17 +102,4 @@ export function getProxyMode(config: Config, pathname: string, method: string): 
       return route.path.some((pattern) => new Bun.Glob(pattern).match(pathname));
     })?.mode ?? config.defaultMode
   );
-}
-
-export async function readConfigsFromDirectory(directory: string): Promise<Config[]> {
-  const glob = new Glob("**/*.{yml,yaml}");
-  const configs: Config[] = [];
-
-  for await (const path of glob.scan({ cwd: directory, absolute: true })) {
-    const content = await Bun.file(path).text();
-    const parsed = YAML.parse(content);
-    configs.push(configSchema.parse(parsed));
-  }
-
-  return configs;
 }
