@@ -2,7 +2,7 @@ import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import type { Config } from "./utils/config";
 import { buildTargetUrl, findMatchingConfig, getProxyMode } from "./utils/config";
-import { getTurnstileToken, validateTurnstile } from "./utils/turnstile";
+import { TURNSTILE_TOKEN_HEADER, validateTurnstile } from "./utils/turnstile";
 
 export const createApp = (configs: Config[]) =>
   new Elysia()
@@ -26,9 +26,9 @@ export const createApp = (configs: Config[]) =>
       }
 
       if (mode === "turnstile") {
-        const token = getTurnstileToken(request);
+        const token = request.headers.get(TURNSTILE_TOKEN_HEADER)?.trim();
 
-        if (token === null) {
+        if (!token) {
           return new Response("Turnstile token required", { status: 422 });
         }
 

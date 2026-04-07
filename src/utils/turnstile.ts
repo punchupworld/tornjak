@@ -1,21 +1,5 @@
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-
-const TURNSTILE_TOKEN_HEADERS = ["cf-turnstile-response", "x-turnstile-token"];
-
-export function getTurnstileToken(request: Request) {
-  for (const headerName of TURNSTILE_TOKEN_HEADERS) {
-    const token = request.headers.get(headerName);
-
-    if (token !== null && token.trim() !== "") {
-      return token;
-    }
-  }
-
-  const url = new URL(request.url);
-  const queryToken = url.searchParams.get("turnstile-token");
-
-  return queryToken !== null && queryToken.trim() !== "" ? queryToken : null;
-}
+export const TURNSTILE_TOKEN_HEADER = "cf-turnstile-response";
 
 export async function validateTurnstile(
   secret: string,

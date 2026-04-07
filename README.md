@@ -24,7 +24,6 @@ routes:
     paths:
       - /admin/*
     mode: block
-  - mode: bypass
 ```
 
 ### Fields
@@ -42,23 +41,43 @@ routes:
 
 Tornjak reads every `*.yml` and `*.yaml` file in `configs/`, so you can split proxies across multiple files.
 
+## Frontend Usage
+
+Point your frontend at the proxy route instead of the upstream destination when you want Tornjak to mediate the request.
+
+For the example config above, requests that would normally go to:
+
+```text
+https://example.com/api/users
+```
+
+should be sent through Tornjak as:
+
+```text
+http://localhost:3000/app-proxy/api/users
+```
+
+Use the `slug` as the path prefix, then append the upstream path after it. Tornjak will match the request against the configured route rules, apply any proxy headers, and forward it to the `destinationUrl`.
+
+If a route is configured with `mode: turnstile`, Tornjak enforces the Turnstile check before the request reaches the destination. The Turnstile response token must be provided in the `cf-turnstile-response` header.
+
 ## Local Development
 
 Required [Bun](https://bun.sh/) as a package manager and JS runtime.
 
 1. Install dependencies:
 
-   ```bash
-   bun install
-   ```
+```bash
+bun install
+```
 
 2. Add at least one config file under `configs/`.
 
 3. Start the app in watch mode:
 
-   ```bash
-   bun run dev
-   ```
+```bash
+bun run dev
+```
 
 Useful scripts from `package.json`:
 
@@ -83,7 +102,7 @@ Run the container with your configs mounted into `/app/configs`:
 ```bash
 docker run --rm \
   -p 3000:3000 \
-  -v "$PWD/configs:/app/configs:ro" \
+  -v "$PWD/configs:/app/configs:z" \
   tornjak
 ```
 
