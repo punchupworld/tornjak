@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import type { Config } from "./config";
+import type { Config } from "./config/schema";
 import {
   buildTargetUrl,
   formatConfigsSummary,
   findMatchingConfig,
   getProxyMode,
   readConfigsFromDirectory,
-} from "./config";
+} from "./config/helpers";
 
 describe("formatConfigsSummary", () => {
   test("summarizes multiple configs by count and slug", () => {

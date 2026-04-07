@@ -1,5 +1,5 @@
 import { createApp } from "./app";
-import { formatConfigsSummary, readConfigsFromDirectory } from "./utils/config";
+import { formatConfigsSummary, readConfigsFromDirectory } from "./utils/config/helpers";
 
 const configs = await readConfigsFromDirectory("configs");
 console.log(formatConfigsSummary(configs));

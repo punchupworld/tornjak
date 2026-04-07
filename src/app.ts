@@ -1,7 +1,7 @@
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
-import type { Config } from "./utils/config";
-import { buildTargetUrl, findMatchingConfig, getProxyMode } from "./utils/config";
+import type { Config } from "./utils/config/schema";
+import { buildTargetUrl, findMatchingConfig, getProxyMode } from "./utils/config/helpers";
 import { TURNSTILE_TOKEN_HEADER, validateTurnstile } from "./utils/turnstile";
 
 export const createApp = (configs: Config[]) =>
