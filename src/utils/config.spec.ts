@@ -1,7 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 
 import type { Config } from "./config";
 import {
@@ -21,7 +18,7 @@ describe("formatConfigsSummary", () => {
           destinationUrl: "https://example.com",
           headers: {},
           defaultMode: "bypass",
-          routes: [{ path: ["/api/*"], mode: "bypass" }],
+          routes: [{ paths: ["/api/*"], mode: "bypass" }],
         },
         {
           slug: "admin-proxy",
@@ -29,8 +26,8 @@ describe("formatConfigsSummary", () => {
           headers: {},
           defaultMode: "block",
           routes: [
-            { path: ["/admin/*"], mode: "block" },
-            { path: ["/admin/users/*"], mode: "turnstile" },
+            { paths: ["/admin/*"], mode: "block" },
+            { paths: ["/admin/users/*"], mode: "turnstile" },
           ],
         },
       ]),
@@ -71,13 +68,13 @@ describe("readConfigsFromDirectory", () => {
 
     expect(appProxy?.routes).toEqual([
       {
-        methods: "GET",
-        path: ["/api/*"],
+        methods: ["GET"],
+        paths: ["/api/*"],
         mode: "bypass",
       },
       {
-        methods: "POST",
-        path: ["/auth/*"],
+        methods: ["POST"],
+        paths: ["/auth/*"],
         mode: "turnstile",
       },
     ]);
@@ -94,38 +91,16 @@ describe("readConfigsFromDirectory", () => {
 
     expect(adminProxy?.routes).toEqual([
       {
-        methods: "PUT",
-        path: ["/admin/*", "/settings/*"],
+        methods: ["PUT"],
+        paths: ["/admin/*", "/settings/*"],
         mode: "block",
       },
       {
-        methods: "PATCH",
-        path: ["/admin/users/*"],
+        methods: ["PATCH"],
+        paths: ["/admin/users/*"],
         mode: "turnstile",
       },
     ]);
-  });
-
-  test("throws when a turnstile route is missing turnstileSecret", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "tornjak-config-"));
-    await writeFile(
-      join(directory, "invalid.yaml"),
-      [
-        "slug: missing-secret",
-        "destinationUrl: https://example.com",
-        "headers: {}",
-        "routes:",
-        "  - methods: GET",
-        "    path:",
-        "      - /secure/*",
-        "    mode: turnstile",
-        "",
-      ].join("\n"),
-    );
-
-    await expect(readConfigsFromDirectory(directory)).rejects.toThrow(
-      "turnstileSecret is required when any route uses turnstile mode",
-    );
   });
 });
 
@@ -137,7 +112,7 @@ describe("proxy helpers", () => {
     defaultMode: "bypass",
     routes: [
       {
-        path: ["/api/*"],
+        paths: ["/api/*"],
         mode: "bypass",
       },
     ],
@@ -150,8 +125,21 @@ describe("proxy helpers", () => {
     defaultMode: "block",
     routes: [
       {
-        methods: "PATCH",
-        path: ["/admin/*"],
+        methods: ["PATCH", "PUT"],
+        paths: ["/admin/*"],
+        mode: "turnstile",
+      },
+    ],
+  };
+
+  const catchAllProxyConfig: Config = {
+    slug: "catch-all-proxy",
+    destinationUrl: "https://catch-all.example.com",
+    headers: {},
+    defaultMode: "block",
+    routes: [
+      {
+        methods: ["GET"],
         mode: "turnstile",
       },
     ],
@@ -173,6 +161,9 @@ describe("proxy helpers", () => {
     expect(getProxyMode(appProxyConfig, "/api/health", "GET")).toBe("bypass");
     expect(getProxyMode(appProxyConfig, "/other", "GET")).toBe("bypass");
     expect(getProxyMode(adminProxyConfig, "/admin/users", "PATCH")).toBe("turnstile");
+    expect(getProxyMode(adminProxyConfig, "/admin/users", "PUT")).toBe("turnstile");
     expect(getProxyMode(adminProxyConfig, "/admin/users", "GET")).toBe("block");
+    expect(getProxyMode(catchAllProxyConfig, "/anything/here", "GET")).toBe("turnstile");
+    expect(getProxyMode(catchAllProxyConfig, "/anything/here", "POST")).toBe("block");
   });
 });

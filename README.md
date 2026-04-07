@@ -14,14 +14,17 @@ headers:
 turnstileSecret: secret-basic
 defaultMode: bypass
 routes:
-  - methods: GET
-    path:
+  - methods:
+      - GET
+    paths:
       - /api/*
     mode: turnstile
-  - methods: POST
-    path:
+  - methods:
+      - POST
+    paths:
       - /admin/*
-    mode: blocked
+    mode: block
+  - mode: bypass
 ```
 
 ### Fields
@@ -32,9 +35,10 @@ routes:
 - `turnstileSecret`: required when any route uses `turnstile`. If no route uses `turnstile`, it can be omitted
 - `defaultMode`: fallback mode when no route matches. Allowed values are `bypass`, `block`, and `turnstile`. Defaults to `bypass`
 - `routes`: list of path rules.
-  - `methods`: optional HTTP method filter, one of `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`. If omitted, the route applies to all methods
-  - `path`: one or more glob patterns that match the request path
+  - `methods`: optional HTTP method filters, one or more of `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`. If omitted, the route applies to all methods
+  - `paths`: optional glob patterns that match the request path. If omitted, the route matches any path
   - `mode`: behavior for matching requests, one of `bypass`, `block`, or `turnstile`
+  - At least one of `methods` or `paths` must be provided
 
 Tornjak reads every `*.yml` and `*.yaml` file in `configs/`, so you can split proxies across multiple files.
 

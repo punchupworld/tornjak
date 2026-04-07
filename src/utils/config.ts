@@ -2,18 +2,27 @@ import { Glob, YAML } from "bun";
 import { join } from "node:path";
 import z from "zod";
 
+const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
 const proxyModeSchema = z.enum(["bypass", "block", "turnstile"]);
 
+export type HttpMethod = z.infer<typeof httpMethodSchema>;
 export type ProxyMode = z.infer<typeof proxyModeSchema>;
 
-const routeSchema = z.object({
-  methods: z
-    .enum(["GET", "POST", "PUT", "DELETE", "PATCH"])
-    .optional()
-    .describe("HTTP methods to match"),
-  path: z.array(z.string()).describe("List of glob patterns to match request path"),
-  mode: proxyModeSchema.describe("Proxy mode for this route"),
-});
+const routeSchema = z
+  .object({
+    methods: z.array(httpMethodSchema).optional().describe("HTTP methods to match"),
+    paths: z.array(z.string()).optional().describe("List of glob patterns to match request path"),
+    mode: proxyModeSchema.describe("Proxy mode for this route"),
+  })
+  .superRefine((route, ctx) => {
+    if (route.methods === undefined && route.paths === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: "methods or paths is required for each route",
+      });
+    }
+  });
 
 const configSchema = z
   .object({
@@ -94,12 +103,11 @@ export function findMatchingConfig(configs: Config[], pathname: string) {
 
 export function getProxyMode(config: Config, pathname: string, method: string): ProxyMode {
   return (
-    config.routes.find((route) => {
-      if (route.methods !== undefined && route.methods !== method) {
-        return false;
-      }
-
-      return route.path.some((pattern) => new Bun.Glob(pattern).match(pathname));
-    })?.mode ?? config.defaultMode
+    config.routes.find(
+      (route) =>
+        (route.methods === undefined || route.methods.includes(method as HttpMethod)) &&
+        (route.paths === undefined ||
+          route.paths.some((pattern) => new Bun.Glob(pattern).match(pathname))),
+    )?.mode ?? config.defaultMode
   );
 }

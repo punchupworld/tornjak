@@ -5,11 +5,13 @@ headers:
   x-env: test
 turnstileSecret: secret-basic
 routes:
-  - methods: GET
-    path:
+  - methods:
+      - GET
+    paths:
       - /api/*
     mode: bypass
-  - methods: POST
-    path:
+  - methods:
+      - POST
+    paths:
       - /auth/*
     mode: turnstile

@@ -6,12 +6,14 @@ headers:
 turnstileSecret: secret-admin
 defaultMode: block
 routes:
-  - methods: PUT
-    path:
+  - methods:
+      - PUT
+    paths:
       - /admin/*
       - /settings/*
     mode: block
-  - methods: PATCH
-    path:
+  - methods:
+      - PATCH
+    paths:
       - /admin/users/*
     mode: turnstile
