@@ -2,6 +2,31 @@
 
 Tornjak is a Turnstile-aware proxy that loads YAML configs and forwards requests to the configured destination URLs.
 
+## Run With Docker
+
+Build the image:
+
+```bash
+docker build -t tornjak .
+```
+
+Run the container with your configs mounted into `/app/configs`:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -v "$PWD/configs:/app/configs:z" \
+  tornjak
+```
+
+After startup, the proxy listens on the configured port and logs a summary of the loaded configs. Tornjak watches the configs directory and automatically reloads the config set when a YAML file changes.
+
+### Environment Variables
+
+- `CONFIGS_DIR`: directory to watch and load YAML configs from. Defaults to `configs`.
+
+- `PORT`: port to bind the HTTP server to. Defaults to `3000`
+
 ## Configuration
 
 Create one or more YAML files in `configs/` with this shape:
@@ -88,22 +113,3 @@ Useful scripts from `package.json`:
 - `bun test`: run the test suite
 
 Also recommenced: install the `oxlint` and `oxfmt` [extensions in your editor](https://oxc.rs/docs/guide/usage/linter/editors.html)
-
-## Run With Docker
-
-Build the image:
-
-```bash
-docker build -t tornjak .
-```
-
-Run the container with your configs mounted into `/app/configs`:
-
-```bash
-docker run --rm \
-  -p 3000:3000 \
-  -v "$PWD/configs:/app/configs:z" \
-  tornjak
-```
-
-After startup, the proxy listens on the configured port and logs a summary of the loaded configs.
