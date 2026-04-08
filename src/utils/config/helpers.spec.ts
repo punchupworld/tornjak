@@ -1,13 +1,13 @@
 import { describe, expect, spyOn, test } from "bun:test";
 
-import type { Config } from "./config/schema";
+import type { Config } from "./schema";
 import {
   buildTargetUrl,
   formatConfigsSummary,
   findMatchingConfig,
   getProxyMode,
   readConfigsFromDirectory,
-} from "./config/helpers";
+} from "./helpers";
 
 describe("formatConfigsSummary", () => {
   test("summarizes multiple configs by count and slug", () => {
