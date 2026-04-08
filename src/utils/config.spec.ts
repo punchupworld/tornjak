@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import type { Config } from "./config/schema";
 import {
@@ -34,8 +34,8 @@ describe("formatConfigsSummary", () => {
     ).toBe(
       [
         "Loaded 2 configs:",
-        "- app-proxy | destination: https://example.com | routes: 1 route (bypass)",
-        "- admin-proxy | destination: https://admin.example.com | routes: 2 routes (block, turnstile)",
+        "app-proxy | destination: https://example.com | routes: 1 route (bypass)",
+        "admin-proxy | destination: https://admin.example.com | routes: 2 routes (block, turnstile)",
       ].join("\n"),
     );
   });
@@ -101,6 +101,29 @@ describe("readConfigsFromDirectory", () => {
         mode: "turnstile",
       },
     ]);
+  });
+
+  test("skips invalid configs and keeps loading valid ones", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const configs = await readConfigsFromDirectory("mocks/configs");
+
+      expect(configs).toHaveLength(2);
+      expect(configs.map((config) => config.slug).sort()).toEqual(["admin-proxy", "app-proxy"]);
+      expect(configs[0]).toMatchObject({
+        slug: "app-proxy",
+        destinationUrl: "https://example.com",
+      });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0]?.[0]).toContain("Failed to load config");
+      expect(errorSpy.mock.calls[0]?.[0]).toContain("mock-invalid.yaml");
+      expect(errorSpy.mock.calls[0]?.[0]).toContain(
+        "turnstileSecret is required when any route uses turnstile mode",
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 

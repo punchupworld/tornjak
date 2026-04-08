@@ -1,5 +1,6 @@
 import { Glob, YAML } from "bun";
 import { join } from "node:path";
+import { ZodError } from "zod";
 
 import type { Config, HttpMethod, ProxyMode } from "./schema";
 import { configSchema } from "./schema";
@@ -9,9 +10,13 @@ export async function readConfigsFromDirectory(directory: string): Promise<Confi
   const configs: Config[] = [];
 
   for await (const path of glob.scan({ cwd: directory, absolute: true })) {
-    const content = await Bun.file(path).text();
-    const parsed = YAML.parse(content);
-    configs.push(configSchema.parse(parsed));
+    try {
+      const content = await Bun.file(path).text();
+      const parsed = YAML.parse(content);
+      configs.push(configSchema.parse(parsed));
+    } catch (error) {
+      console.error(`Failed to load config ${path}: ${formatErrorMessage(error)}`);
+    }
   }
 
   return configs;
@@ -28,7 +33,7 @@ export function formatConfigsSummary(configs: ReadonlyArray<Config>) {
     `Loaded ${configs.length} ${countLabel}:`,
     ...configs.map(
       (config) =>
-        `- ${config.slug} | destination: ${config.destinationUrl} | routes: ${formatRouteSummary(config.routes)}`,
+        `${config.slug} | destination: ${config.destinationUrl} | routes: ${formatRouteSummary(config.routes)}`,
     ),
   ].join("\n");
 }
@@ -62,4 +67,16 @@ export function getProxyMode(config: Config, pathname: string, method: string): 
           route.paths.some((pattern) => new Bun.Glob(pattern).match(pathname))),
     )?.mode ?? config.defaultMode
   );
+}
+
+function formatErrorMessage(error: unknown) {
+  if (error instanceof ZodError) {
+    return error.issues.map((issue) => issue.message).join("; ");
+  }
+
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+
+  return String(error);
 }

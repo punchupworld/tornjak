@@ -1,0 +1,6 @@
+slug: invalid-proxy
+destinationUrl: https://example.com
+routes:
+  - mode: turnstile
+    paths:
+      - /secure/*
