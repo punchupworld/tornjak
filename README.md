@@ -2,6 +2,17 @@
 
 Tornjak is a Turnstile-aware proxy that loads YAML configs and forwards requests to the configured destination URLs.
 
+```mermaid
+flowchart LR
+  FE[Client] -->|Request to Tornjak slug| TJ[Tornjak proxy]
+  TJ -->|Matches config| CFG[(YAML config files)]
+  TJ -->|Validates token for turnstile routes| TS[Cloudflare Turnstile]
+  TJ -->|Forwards proxied request| DST[Destination API]
+  TS -->|Validation result| TJ
+  DST -->|Response| TJ
+  TJ -->|Response| FE
+```
+
 ## Run With Docker
 
 Build the image:
@@ -66,9 +77,9 @@ routes:
 
 Tornjak reads every `*.yml` and `*.yaml` file in `configs/`, so you can split proxies across multiple files.
 
-## Frontend Usage
+## Client Usage
 
-Point your frontend at the proxy route instead of the upstream destination when you want Tornjak to mediate the request.
+Point your client at the proxy route instead of the upstream destination when you want Tornjak to mediate the request.
 
 For the example config above, requests that would normally go to:
 
