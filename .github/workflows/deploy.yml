@@ -1,0 +1,50 @@
+name: Deploy Punch Up Instance
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: tornjak
+  IMAGE_TAR: tornjak.tar
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun test
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t ${{ env.IMAGE_NAME }}:latest .
+      - name: Save Docker image to tar
+        run: docker save ${{ env.IMAGE_NAME }}:latest > ${{ env.IMAGE_TAR }}
+      - name: Copy image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: ${{ env.IMAGE_TAR }}
+          target: /tmp
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            docker load < /tmp/${{ env.IMAGE_TAR }}
+            rm /tmp/${{ env.IMAGE_TAR }}
+            cd ${{ secrets.DEPLOY_DIR }}
+            docker compose up -d
+            docker image prune -f --filter "label=${{ env.IMAGE_NAME }}"
