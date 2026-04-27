@@ -17,8 +17,17 @@ function isTurnstileGlobalCached(cacheKey: string): boolean {
   return true;
 }
 
-export function clearTurnstileGlobalCache(): void {
-  globalCache.clear();
+export function clearTurnstileGlobalCache(expiredOnly = false): void {
+  if (!expiredOnly) {
+    globalCache.clear();
+    return;
+  }
+
+  for (const [key, expiredAt] of globalCache) {
+    if (Date.now() >= expiredAt) {
+      globalCache.delete(key);
+    }
+  }
 }
 
 type ValidateTurnstileOptions = {

@@ -1,15 +1,21 @@
 import { createApp } from "./app";
 import { formatConfigsSummary, readConfigsFromDirectory } from "./utils/config/helpers";
+import { clearTurnstileGlobalCache } from "./utils/turnstile";
 import { watch } from "node:fs";
 
 const CONFIGS_DIR = Bun.env.CONFIGS_DIR ?? "configs";
 const PORT = Number(Bun.env.PORT ?? 3000);
+const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 let app = createApp([]);
 let reloadInProgress = false;
 let reloadRequested = false;
 
 await startApp();
+
+const cacheCleanupInterval = setInterval(() => {
+  clearTurnstileGlobalCache(true);
+}, CACHE_CLEANUP_INTERVAL_MS);
 
 const watcher = watch(CONFIGS_DIR, { recursive: true }, () => {
   console.log(`Config change detected in ${CONFIGS_DIR}, reloading...`);
@@ -56,6 +62,7 @@ async function startApp(stopCurrentApp = false) {
 
 async function shutdown() {
   watcher.close();
+  clearInterval(cacheCleanupInterval);
   await app.stop(true);
   process.exit(0);
 }
