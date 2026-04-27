@@ -21,13 +21,21 @@ export function clearTurnstileGlobalCache(): void {
   globalCache.clear();
 }
 
-export async function validateTurnstile(
-  secret: string,
-  token: string,
-  remoteip: string,
-  sessionCache: TurnstileSessionCache,
-  cacheHeader?: string | null,
-): Promise<TunstileValidationResponse> {
+type ValidateTurnstileOptions = {
+  secret?: string;
+  token: string;
+  remoteip?: string;
+  sessionCache: TurnstileSessionCache;
+  cacheHeader?: string | null;
+};
+
+export async function validateTurnstile({
+  secret = "",
+  token,
+  remoteip,
+  sessionCache,
+  cacheHeader,
+}: ValidateTurnstileOptions): Promise<TunstileValidationResponse> {
   const cacheKey = `${token}:${remoteip}`;
   const cacheMs = cacheHeader ? parseInt(cacheHeader, 10) : undefined;
 

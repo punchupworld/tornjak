@@ -1,6 +1,6 @@
 import type { Context } from "elysia";
 import type { Config } from "./config/schema";
-import { buildTargetUrl, findMatchingConfig, getProxyMode } from "./config/helpers";
+import { buildTargetUrl, getProxyMode } from "./config/helpers";
 import {
   TURNSTILE_TOKEN_HEADER,
   TURNSTILE_CACHE_MS_HEADER,
@@ -8,18 +8,18 @@ import {
   type TurnstileSessionCache,
 } from "./turnstile";
 
-export async function handleRequest(
-  request: Request,
-  configs: Config[],
-  server: Context["server"] = null,
-  turnstileSessionCache: TurnstileSessionCache = new Map(),
-): Promise<Response> {
+export async function handleRequest({
+  request,
+  config,
+  server = null,
+  sessionCache = new Map(),
+}: {
+  request: Request;
+  config: Config;
+  server?: Context["server"];
+  sessionCache?: TurnstileSessionCache;
+}): Promise<Response> {
   const pathname = new URL(request.url).pathname;
-  const config = findMatchingConfig(configs, pathname);
-
-  if (config === undefined) {
-    return new Response("Not found", { status: 404 });
-  }
 
   const slugPrefix = `/${config.slug}`;
   const relativePath = pathname.slice(slugPrefix.length) || "/";
@@ -36,16 +36,13 @@ export async function handleRequest(
       return new Response("Turnstile token required", { status: 422 });
     }
 
-    const remoteip =
-      request.headers.get("cf-connecting-ip") ?? server?.requestIP(request)?.address ?? "";
-
-    const result = await validateTurnstile(
-      config.turnstileSecret ?? "",
+    const result = await validateTurnstile({
       token,
-      remoteip,
-      turnstileSessionCache,
-      request.headers.get(TURNSTILE_CACHE_MS_HEADER),
-    );
+      sessionCache,
+      secret: config.turnstileSecret,
+      remoteip: request.headers.get("cf-connecting-ip") ?? server?.requestIP(request)?.address,
+      cacheHeader: request.headers.get(TURNSTILE_CACHE_MS_HEADER),
+    });
 
     if (!result.success) {
       return new Response(

@@ -1,36 +1,48 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 
 import { TURNSTILE_VERIFY_URL, clearTurnstileGlobalCache } from "./turnstile";
+import type { Config } from "./config/schema";
 import { handleRequest } from "./request";
 import { installFetchMock } from "../../mocks/fetch";
-import { createTestApp } from "../../mocks/app";
 
 beforeEach(() => {
   clearTurnstileGlobalCache();
 });
 
+const appProxyConfig: Config = {
+  slug: "app-proxy",
+  destinationUrl: "https://example.com",
+  headers: {
+    "x-powered-by": "tornjak",
+    "x-env": "test",
+  },
+  turnstileSecret: "secret-basic",
+  defaultMode: "bypass",
+  batchingLimit: 5,
+  routes: [
+    { methods: ["GET"], paths: ["/api/*"], mode: "bypass" },
+    { methods: ["POST"], paths: ["/auth/*"], mode: "turnstile" },
+  ],
+};
+
+const adminProxyConfig: Config = {
+  slug: "admin-proxy",
+  destinationUrl: "https://admin.example.com",
+  headers: {
+    "x-powered-by": "tornjak",
+    "x-env": "staging",
+  },
+  turnstileSecret: "secret-admin",
+  defaultMode: "block",
+  batchingLimit: 5,
+  routes: [
+    { methods: ["PUT"], paths: ["/admin/*", "/settings/*"], mode: "block" },
+    { methods: ["PATCH"], paths: ["/admin/users/*"], mode: "turnstile" },
+  ],
+};
+
 describe("handleRequest", () => {
-  test("returns 404 for unmatched slugs", async () => {
-    const { configs } = await createTestApp();
-    const restoreFetch = installFetchMock(async () => {
-      throw new Error("destination fetch should not be called for unmatched slugs");
-    });
-
-    try {
-      const response = await handleRequest(
-        new Request("http://localhost/unknown-proxy/path"),
-        configs,
-      );
-
-      expect(response.status).toBe(404);
-      expect(await response.text()).toBe("Not found");
-    } finally {
-      restoreFetch();
-    }
-  });
-
   test("proxies bypassed routes to the configured destination", async () => {
-    const { configs } = await createTestApp();
     const restoreFetch = installFetchMock(async ({ input, init }) => {
       const headers = init?.headers;
 
@@ -49,15 +61,15 @@ describe("handleRequest", () => {
     });
 
     try {
-      const response = await handleRequest(
-        new Request("http://localhost/app-proxy/api/health?foo=bar", {
+      const response = await handleRequest({
+        request: new Request("http://localhost/app-proxy/api/health?foo=bar", {
           headers: {
             Origin: "http://example.com",
             "x-client": "bun",
           },
         }),
-        configs,
-      );
+        config: appProxyConfig,
+      });
 
       expect(response.status).toBe(201);
       expect(await response.json()).toEqual({ proxied: true });
@@ -67,16 +79,15 @@ describe("handleRequest", () => {
   });
 
   test("blocks requests when the matched mode resolves to block", async () => {
-    const { configs } = await createTestApp();
     const restoreFetch = installFetchMock(async () => {
       throw new Error("destination fetch should not be called for blocked requests");
     });
 
     try {
-      const response = await handleRequest(
-        new Request("http://localhost/admin-proxy/anything"),
-        configs,
-      );
+      const response = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/anything"),
+        config: adminProxyConfig,
+      });
 
       expect(response.status).toBe(403);
       expect(await response.text()).toBe("Forbidden");
@@ -86,7 +97,6 @@ describe("handleRequest", () => {
   });
 
   test("verifies turnstile routes before proxying", async () => {
-    const { configs } = await createTestApp();
     const restoreFetch = installFetchMock(async ({ input, init }, calls) => {
       const headers = init?.headers;
 
@@ -126,8 +136,8 @@ describe("handleRequest", () => {
     });
 
     try {
-      const response = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/42", {
+      const response = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/42", {
           method: "PATCH",
           headers: {
             "content-type": "application/json",
@@ -136,8 +146,8 @@ describe("handleRequest", () => {
           },
           body: JSON.stringify({ active: true }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ ok: true });
@@ -147,7 +157,6 @@ describe("handleRequest", () => {
   });
 
   test("caches successful turnstile validation when cf-turnstile-cache-ms is specified", async () => {
-    const { configs } = await createTestApp();
     let verifyCalls = 0;
     const restoreFetch = installFetchMock(async ({ input }) => {
       if (String(input) === TURNSTILE_VERIFY_URL) {
@@ -167,25 +176,25 @@ describe("handleRequest", () => {
         "cf-turnstile-cache-ms": "60000",
       };
 
-      const response1 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/42", {
+      const response1 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/42", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: true }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response1.status).toBe(200);
       expect(verifyCalls).toBe(1);
 
-      const response2 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/43", {
+      const response2 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/43", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: false }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response2.status).toBe(200);
       expect(verifyCalls).toBe(1);
     } finally {
@@ -194,7 +203,6 @@ describe("handleRequest", () => {
   });
 
   test("re-validates turnstile when cached token expires", async () => {
-    const { configs } = await createTestApp();
     let verifyCalls = 0;
     const restoreFetch = installFetchMock(async ({ input }) => {
       if (String(input) === TURNSTILE_VERIFY_URL) {
@@ -214,28 +222,28 @@ describe("handleRequest", () => {
         "cf-turnstile-cache-ms": "1000",
       };
 
-      const response1 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/42", {
+      const response1 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/42", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: true }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response1.status).toBe(200);
       expect(verifyCalls).toBe(1);
 
       const originalNow = Date.now;
       Date.now = () => originalNow() + 2000;
 
-      const response2 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/43", {
+      const response2 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/43", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: false }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response2.status).toBe(200);
       expect(verifyCalls).toBe(2);
 
@@ -246,7 +254,6 @@ describe("handleRequest", () => {
   });
 
   test("does not cache turnstile when cf-turnstile-cache-ms is absent", async () => {
-    const { configs } = await createTestApp();
     let verifyCalls = 0;
     const restoreFetch = installFetchMock(async ({ input }) => {
       if (String(input) === TURNSTILE_VERIFY_URL) {
@@ -265,25 +272,25 @@ describe("handleRequest", () => {
         "cf-turnstile-response": "turnstile-token-123",
       };
 
-      const response1 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/42", {
+      const response1 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/42", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: true }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response1.status).toBe(200);
       expect(verifyCalls).toBe(1);
 
-      const response2 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/43", {
+      const response2 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/43", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: false }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response2.status).toBe(200);
       expect(verifyCalls).toBe(2);
     } finally {
@@ -292,7 +299,6 @@ describe("handleRequest", () => {
   });
 
   test("does not cache turnstile when validation fails", async () => {
-    const { configs } = await createTestApp();
     let verifyCalls = 0;
     const restoreFetch = installFetchMock(async ({ input }) => {
       if (String(input) === TURNSTILE_VERIFY_URL) {
@@ -312,25 +318,25 @@ describe("handleRequest", () => {
         "cf-turnstile-cache-ms": "60000",
       };
 
-      const response1 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/42", {
+      const response1 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/42", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: true }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response1.status).toBe(403);
       expect(verifyCalls).toBe(1);
 
-      const response2 = await handleRequest(
-        new Request("http://localhost/admin-proxy/admin/users/43", {
+      const response2 = await handleRequest({
+        request: new Request("http://localhost/admin-proxy/admin/users/43", {
           method: "PATCH",
           headers,
           body: JSON.stringify({ active: false }),
         }),
-        configs,
-      );
+        config: adminProxyConfig,
+      });
       expect(response2.status).toBe(403);
       expect(verifyCalls).toBe(2);
     } finally {

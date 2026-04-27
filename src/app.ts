@@ -5,6 +5,7 @@ import { httpMethodSchema, type Config } from "./utils/config/schema";
 import { handleRequest } from "./utils/request";
 import { serializeResponses } from "./utils/response";
 import type { TurnstileSessionCache } from "./utils/turnstile";
+import { findMatchingConfig } from "./utils/config/helpers";
 
 export const createApp = (configs: Config[]) =>
   new Elysia()
@@ -14,7 +15,7 @@ export const createApp = (configs: Config[]) =>
     .post(
       "/batch/:slug",
       async ({ body, params, request, store, server, set }) => {
-        const config = store.configs.find((c) => c.slug === params.slug);
+        const config = findMatchingConfig(store.configs, `/${params.slug}`);
         if (!config) {
           set.status = 404;
           return "Not found";
@@ -45,12 +46,12 @@ export const createApp = (configs: Config[]) =>
             const path = item.path.startsWith("/") ? item.path : `/${item.path}`;
             const reqUrl = new URL(`/${params.slug}${path}`, request.url).href;
 
-            return handleRequest(
-              new Request(reqUrl, reqInit),
-              store.configs,
+            return handleRequest({
+              request: new Request(reqUrl, reqInit),
+              config,
               server,
-              turnstileSessionCache,
-            );
+              sessionCache: turnstileSessionCache,
+            });
           }),
         );
 
@@ -67,6 +68,11 @@ export const createApp = (configs: Config[]) =>
         ),
       },
     )
-    .all("/:slug/*", async ({ request, store, server }) =>
-      handleRequest(request, store.configs, server),
-    );
+    .all("/:slug/*", async ({ request, store, server, set }) => {
+      const config = findMatchingConfig(store.configs, new URL(request.url).pathname);
+      if (!config) {
+        set.status = 404;
+        return "Not found";
+      }
+      return handleRequest({ request, config, server });
+    });
