@@ -19,7 +19,9 @@ export const createApp = (configs: Config[]) =>
           body.map(async (item) => {
             const reqInit: RequestInit = {};
             if (item.method) reqInit.method = item.method;
-            if (item.body) reqInit.body = item.body;
+            if (item.body) {
+              reqInit.body = typeof item.body === "string" ? item.body : JSON.stringify(item.body);
+            }
 
             const headers = new Headers(request.headers);
             if (item.headers) {
@@ -49,7 +51,7 @@ export const createApp = (configs: Config[]) =>
             path: z.string(),
             method: httpMethodSchema.optional(),
             headers: z.record(z.string(), z.string()).optional(),
-            body: z.string().optional(),
+            body: z.union([z.string(), z.json()]).optional(),
           }),
         ),
       },

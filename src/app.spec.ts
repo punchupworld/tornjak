@@ -89,6 +89,45 @@ describe("batch handler", () => {
     }
   });
 
+  test("stringifies JSON body in batch sub-requests", async () => {
+    const { app } = await createTestApp();
+    const restoreFetch = installFetchMock(async ({ init }, calls) => {
+      if (calls.length === 1) {
+        expect(new TextDecoder().decode(init?.body as ArrayBuffer)).toBe(
+          JSON.stringify({ name: "test" }),
+        );
+      } else {
+        expect(new TextDecoder().decode(init?.body as ArrayBuffer)).toBe("raw string body");
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    try {
+      const response = await app.fetch(
+        new Request("http://localhost/batch/app-proxy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify([
+            { path: "/api/health", method: "POST", body: { name: "test" } },
+            { path: "/api/users", method: "POST", body: "raw string body" },
+          ]),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as Array<{ status: number }>;
+      expect(result).toHaveLength(2);
+      expect(result[0]!.status).toBe(200);
+      expect(result[1]!.status).toBe(200);
+    } finally {
+      restoreFetch();
+    }
+  });
+
   test("returns mixed responses for bypass and turnstile-missing-token routes", async () => {
     const { app } = await createTestApp();
     const restoreFetch = installFetchMock(async () => {

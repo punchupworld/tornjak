@@ -115,7 +115,7 @@ Content-Type: application/json
   {
     "path": "/api/items",
     "method": "POST",
-    "body": "{\"name\":\"new item\"}"
+    "body": {"name": "new item"}
   }
 ]
 ```
@@ -127,7 +127,7 @@ Each descriptor object supports these fields:
 | `path`    | Yes      | Upstream path. Auto-prefixed with `/` if omitted |
 | `method`  | No       | HTTP method. Defaults to `GET`                   |
 | `headers` | No       | Extra headers for this request only              |
-| `body`    | No       | Request body string                              |
+| `body`    | No       | Request body string or JSON object               |
 
 Batch request headers are forwarded to each sub-request. Body item headers override batch headers.
 
