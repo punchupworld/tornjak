@@ -2,8 +2,9 @@ import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import z from "zod";
 import { httpMethodSchema, type Config } from "./utils/config/schema";
-import { handleRequest, type TurnstileCache } from "./utils/request";
+import { handleRequest } from "./utils/request";
 import { serializeResponses } from "./utils/response";
+import type { TurnstileSessionCache } from "./utils/turnstile";
 
 export const createApp = (configs: Config[]) =>
   new Elysia()
@@ -23,7 +24,7 @@ export const createApp = (configs: Config[]) =>
           return `Batch limit exceeded: max ${config.batchingLimit} requests allowed`;
         }
 
-        const turnstileCache: TurnstileCache = new Map();
+        const turnstileSessionCache: TurnstileSessionCache = new Map();
 
         const responses = await Promise.all(
           body.map(async (item) => {
@@ -48,7 +49,7 @@ export const createApp = (configs: Config[]) =>
               new Request(reqUrl, reqInit),
               store.configs,
               server,
-              turnstileCache,
+              turnstileSessionCache,
             );
           }),
         );

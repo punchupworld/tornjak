@@ -1,17 +1,18 @@
+import type { Context } from "elysia";
 import type { Config } from "./config/schema";
 import { buildTargetUrl, findMatchingConfig, getProxyMode } from "./config/helpers";
-import { TURNSTILE_TOKEN_HEADER, validateTurnstile } from "./turnstile";
-
-export type TurnstileCache = Map<string, Promise<{ success: boolean; error?: unknown }>>;
+import {
+  TURNSTILE_TOKEN_HEADER,
+  TURNSTILE_CACHE_MS_HEADER,
+  validateTurnstile,
+  type TurnstileSessionCache,
+} from "./turnstile";
 
 export async function handleRequest(
   request: Request,
   configs: Config[],
-  server:
-    | { requestIP(request: Request): { address: string; family: string; port: number } | null }
-    | null
-    | undefined,
-  turnstileCache: TurnstileCache = new Map(),
+  server: Context["server"] = null,
+  turnstileSessionCache: TurnstileSessionCache = new Map(),
 ): Promise<Response> {
   const pathname = new URL(request.url).pathname;
   const config = findMatchingConfig(configs, pathname);
@@ -37,15 +38,14 @@ export async function handleRequest(
 
     const remoteip =
       request.headers.get("cf-connecting-ip") ?? server?.requestIP(request)?.address ?? "";
-    const cacheKey = `${config.turnstileSecret ?? ""}:${token}:${remoteip}`;
 
-    let resultPromise = turnstileCache.get(cacheKey);
-    if (!resultPromise) {
-      resultPromise = validateTurnstile(config.turnstileSecret ?? "", token, remoteip);
-      turnstileCache.set(cacheKey, resultPromise);
-    }
-
-    const result = await resultPromise;
+    const result = await validateTurnstile(
+      config.turnstileSecret ?? "",
+      token,
+      remoteip,
+      turnstileSessionCache,
+      request.headers.get(TURNSTILE_CACHE_MS_HEADER),
+    );
 
     if (!result.success) {
       return new Response(
@@ -64,6 +64,7 @@ async function proxyRequest(request: Request, config: Config, pathname: string) 
 
   headers.delete("host");
   headers.delete("content-length");
+  headers.delete(TURNSTILE_CACHE_MS_HEADER);
 
   for (const [name, value] of Object.entries(config.headers)) {
     headers.set(name, value);

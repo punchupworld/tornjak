@@ -97,7 +97,12 @@ http://localhost:3000/app-proxy/api/users
 
 Use the `slug` as the path prefix, then append the upstream path after it. Tornjak will match the request against the configured route rules, apply any proxy headers, and forward it to the `destinationUrl`.
 
-If a route is configured with `mode: turnstile`, Tornjak enforces the Turnstile check before the request reaches the destination. The Turnstile response token must be provided in the `cf-turnstile-response` header.
+### Request Headers
+
+| Header                  | Required               | Description                                                                                                                     |
+| ----------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `cf-turnstile-response` | For `turnstile` routes | Turnstile response token to validate before proxying                                                                            |
+| `cf-turnstile-cache-ms` | No                     | Cache successful validation for this duration in milliseconds. Token is keyed by token + client IP. Stripped before forwarding. |
 
 ### Batching
 

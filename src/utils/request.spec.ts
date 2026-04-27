@@ -1,9 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
-import { TURNSTILE_VERIFY_URL } from "./turnstile";
+import { TURNSTILE_VERIFY_URL, clearTurnstileGlobalCache } from "./turnstile";
 import { handleRequest } from "./request";
 import { installFetchMock } from "../../mocks/fetch";
 import { createTestApp } from "../../mocks/app";
+
+beforeEach(() => {
+  clearTurnstileGlobalCache();
+});
 
 describe("handleRequest", () => {
   test("returns 404 for unmatched slugs", async () => {
@@ -16,7 +20,6 @@ describe("handleRequest", () => {
       const response = await handleRequest(
         new Request("http://localhost/unknown-proxy/path"),
         configs,
-        undefined,
       );
 
       expect(response.status).toBe(404);
@@ -54,7 +57,6 @@ describe("handleRequest", () => {
           },
         }),
         configs,
-        undefined,
       );
 
       expect(response.status).toBe(201);
@@ -74,7 +76,6 @@ describe("handleRequest", () => {
       const response = await handleRequest(
         new Request("http://localhost/admin-proxy/anything"),
         configs,
-        undefined,
       );
 
       expect(response.status).toBe(403);
@@ -136,11 +137,202 @@ describe("handleRequest", () => {
           body: JSON.stringify({ active: true }),
         }),
         configs,
-        undefined,
       );
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ ok: true });
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("caches successful turnstile validation when cf-turnstile-cache-ms is specified", async () => {
+    const { configs } = await createTestApp();
+    let verifyCalls = 0;
+    const restoreFetch = installFetchMock(async ({ input }) => {
+      if (String(input) === TURNSTILE_VERIFY_URL) {
+        verifyCalls++;
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    try {
+      const headers = {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.10",
+        "cf-turnstile-response": "turnstile-token-123",
+        "cf-turnstile-cache-ms": "60000",
+      };
+
+      const response1 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/42", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: true }),
+        }),
+        configs,
+      );
+      expect(response1.status).toBe(200);
+      expect(verifyCalls).toBe(1);
+
+      const response2 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/43", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: false }),
+        }),
+        configs,
+      );
+      expect(response2.status).toBe(200);
+      expect(verifyCalls).toBe(1);
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("re-validates turnstile when cached token expires", async () => {
+    const { configs } = await createTestApp();
+    let verifyCalls = 0;
+    const restoreFetch = installFetchMock(async ({ input }) => {
+      if (String(input) === TURNSTILE_VERIFY_URL) {
+        verifyCalls++;
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    try {
+      const headers = {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.10",
+        "cf-turnstile-response": "turnstile-token-123",
+        "cf-turnstile-cache-ms": "1000",
+      };
+
+      const response1 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/42", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: true }),
+        }),
+        configs,
+      );
+      expect(response1.status).toBe(200);
+      expect(verifyCalls).toBe(1);
+
+      const originalNow = Date.now;
+      Date.now = () => originalNow() + 2000;
+
+      const response2 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/43", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: false }),
+        }),
+        configs,
+      );
+      expect(response2.status).toBe(200);
+      expect(verifyCalls).toBe(2);
+
+      Date.now = originalNow;
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("does not cache turnstile when cf-turnstile-cache-ms is absent", async () => {
+    const { configs } = await createTestApp();
+    let verifyCalls = 0;
+    const restoreFetch = installFetchMock(async ({ input }) => {
+      if (String(input) === TURNSTILE_VERIFY_URL) {
+        verifyCalls++;
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    try {
+      const headers = {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.10",
+        "cf-turnstile-response": "turnstile-token-123",
+      };
+
+      const response1 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/42", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: true }),
+        }),
+        configs,
+      );
+      expect(response1.status).toBe(200);
+      expect(verifyCalls).toBe(1);
+
+      const response2 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/43", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: false }),
+        }),
+        configs,
+      );
+      expect(response2.status).toBe(200);
+      expect(verifyCalls).toBe(2);
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("does not cache turnstile when validation fails", async () => {
+    const { configs } = await createTestApp();
+    let verifyCalls = 0;
+    const restoreFetch = installFetchMock(async ({ input }) => {
+      if (String(input) === TURNSTILE_VERIFY_URL) {
+        verifyCalls++;
+        return new Response(JSON.stringify({ success: false }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    try {
+      const headers = {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.10",
+        "cf-turnstile-response": "turnstile-token-123",
+        "cf-turnstile-cache-ms": "60000",
+      };
+
+      const response1 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/42", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: true }),
+        }),
+        configs,
+      );
+      expect(response1.status).toBe(403);
+      expect(verifyCalls).toBe(1);
+
+      const response2 = await handleRequest(
+        new Request("http://localhost/admin-proxy/admin/users/43", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ active: false }),
+        }),
+        configs,
+      );
+      expect(response2.status).toBe(403);
+      expect(verifyCalls).toBe(2);
     } finally {
       restoreFetch();
     }
