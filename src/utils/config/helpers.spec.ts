@@ -19,6 +19,7 @@ describe("formatConfigsSummary", () => {
           headers: {},
           defaultMode: "bypass",
           routes: [{ paths: ["/api/*"], mode: "bypass" }],
+          batchingLimit: 5,
         },
         {
           slug: "admin-proxy",
@@ -29,6 +30,7 @@ describe("formatConfigsSummary", () => {
             { paths: ["/admin/*"], mode: "block" },
             { paths: ["/admin/users/*"], mode: "turnstile" },
           ],
+          batchingLimit: 5,
         },
       ]),
     ).toBe(
@@ -139,6 +141,7 @@ describe("proxy helpers", () => {
         mode: "bypass",
       },
     ],
+    batchingLimit: 5,
   };
 
   const adminProxyConfig: Config = {
@@ -153,6 +156,7 @@ describe("proxy helpers", () => {
         mode: "turnstile",
       },
     ],
+    batchingLimit: 5,
   };
 
   const catchAllProxyConfig: Config = {
@@ -166,6 +170,7 @@ describe("proxy helpers", () => {
         mode: "turnstile",
       },
     ],
+    batchingLimit: 5,
   };
 
   const configs: Config[] = [appProxyConfig, adminProxyConfig];

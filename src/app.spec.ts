@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { createApp } from "./app";
 import { TURNSTILE_VERIFY_URL } from "./utils/turnstile";
 import { createTestApp } from "../mocks/app";
 import { installFetchMock } from "../mocks/fetch";
@@ -207,6 +208,115 @@ describe("batch handler", () => {
       expect(result).toHaveLength(2);
       expect(result[0]!.status).toBe(200);
       expect(result[1]!.status).toBe(200);
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("returns 404 for unmatched slug in batch", async () => {
+    const { app } = await createTestApp();
+    const restoreFetch = installFetchMock(async () => {
+      throw new Error("destination fetch should not be called for unmatched slugs");
+    });
+
+    try {
+      const response = await app.fetch(
+        new Request("http://localhost/batch/unknown-proxy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify([{ path: "/api/health" }]),
+        }),
+      );
+
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe("Not found");
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("returns 413 when batch exceeds batchingLimit", async () => {
+    const { app } = await createTestApp();
+    const restoreFetch = installFetchMock(async () => {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    try {
+      const body = Array.from({ length: 6 }, (_, i) => ({ path: `/api/item/${i}` }));
+      const response = await app.fetch(
+        new Request("http://localhost/batch/app-proxy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+
+      expect(response.status).toBe(413);
+      expect(await response.text()).toBe("Batch limit exceeded: max 5 requests allowed");
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("allows batch up to batchingLimit", async () => {
+    const { app } = await createTestApp();
+    const restoreFetch = installFetchMock(async () => {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    try {
+      const body = Array.from({ length: 5 }, (_, i) => ({ path: `/api/item/${i}` }));
+      const response = await app.fetch(
+        new Request("http://localhost/batch/app-proxy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as Array<{ status: number }>;
+      expect(result).toHaveLength(5);
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test("rejects all batch requests when batchingLimit is 0", async () => {
+    const app = createApp([
+      {
+        slug: "no-batch-proxy",
+        destinationUrl: "https://example.com",
+        headers: {},
+        defaultMode: "bypass",
+        routes: [{ paths: ["/api/*"], mode: "bypass" }],
+        batchingLimit: 0,
+      },
+    ]);
+    const restoreFetch = installFetchMock(async () => {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    try {
+      const response = await app.fetch(
+        new Request("http://localhost/batch/no-batch-proxy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify([{ path: "/api/health" }]),
+        }),
+      );
+
+      expect(response.status).toBe(413);
+      expect(await response.text()).toBe("Batch limit exceeded: max 0 requests allowed");
     } finally {
       restoreFetch();
     }

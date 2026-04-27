@@ -12,7 +12,17 @@ export const createApp = (configs: Config[]) =>
     .get("/", () => ({ status: "Torkjak is running 🐶" }))
     .post(
       "/batch/:slug",
-      async ({ body, params, request, store, server }) => {
+      async ({ body, params, request, store, server, set }) => {
+        const config = store.configs.find((c) => c.slug === params.slug);
+        if (!config) {
+          set.status = 404;
+          return "Not found";
+        }
+        if (body.length > config.batchingLimit) {
+          set.status = 413;
+          return `Batch limit exceeded: max ${config.batchingLimit} requests allowed`;
+        }
+
         const turnstileCache: TurnstileCache = new Map();
 
         const responses = await Promise.all(

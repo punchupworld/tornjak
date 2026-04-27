@@ -34,6 +34,12 @@ export const configSchema = z
     defaultMode: proxyModeSchema
       .default("bypass")
       .describe("Default proxy mode for requests that don't match any route"),
+    batchingLimit: z
+      .number()
+      .int()
+      .min(0)
+      .default(5)
+      .describe("Maximum number of requests allowed in a batch"),
     routes: z.array(routeSchema).describe("List of routes to proxy"),
   })
   .superRefine((config, ctx) => {

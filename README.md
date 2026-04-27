@@ -49,6 +49,7 @@ headers:
   authorization: bearer secret-token
 turnstileSecret: secret-basic
 defaultMode: bypass
+batchingLimit: 5
 routes:
   - methods:
       - GET
@@ -69,6 +70,7 @@ routes:
 - `headers`: headers added to every proxied request. Defaults to `{}` when omitted
 - `turnstileSecret`: required when any route uses `turnstile`. If no route uses `turnstile`, it can be omitted
 - `defaultMode`: fallback mode when no route matches. Allowed values are `bypass`, `block`, and `turnstile`. Defaults to `bypass`
+- `batchingLimit`: maximum number of requests allowed in a single batch call. Defaults to `5`. Set to `0` to disable batching entirely
 - `routes`: list of path rules.
   - `methods`: optional HTTP method filters, one or more of `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`. If omitted, the route applies to all methods
   - `paths`: optional glob patterns that match the request path. If omitted, the route matches any path
@@ -132,6 +134,8 @@ Each descriptor object supports these fields:
 Batch request headers are forwarded to each sub-request. Body item headers override batch headers.
 
 If one or more requests hit a `turnstile` route, Turnstile validation runs once and the result is shared across all matching requests in the batch.
+
+Batches are limited to `batchingLimit` requests per call (default `5`). Requests that exceed this limit receive a `413` response. Set `batchingLimit: 0` to disable batching entirely.
 
 The response is a JSON array where each element corresponds to the request at the same index:
 
