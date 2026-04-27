@@ -97,6 +97,63 @@ Use the `slug` as the path prefix, then append the upstream path after it. Tornj
 
 If a route is configured with `mode: turnstile`, Tornjak enforces the Turnstile check before the request reaches the destination. The Turnstile response token must be provided in the `cf-turnstile-response` header.
 
+### Batching
+
+Tornjak supports batching multiple requests to the same slug in a single call. This is useful when you need to make several API calls atomically while sharing Turnstile validation.
+
+Send a `POST` request to `/batch/{slug}` with a JSON body containing an array of request descriptors:
+
+```json
+POST http://localhost:3000/batch/app-proxy
+Content-Type: application/json
+
+[
+  {
+    "path": "/api/users",
+    "method": "GET"
+  },
+  {
+    "path": "/api/items",
+    "method": "POST",
+    "body": "{\"name\":\"new item\"}"
+  }
+]
+```
+
+Each descriptor object supports these fields:
+
+| Field     | Required | Description                                      |
+| --------- | -------- | ------------------------------------------------ |
+| `path`    | Yes      | Upstream path. Auto-prefixed with `/` if omitted |
+| `method`  | No       | HTTP method. Defaults to `GET`                   |
+| `headers` | No       | Extra headers for this request only              |
+| `body`    | No       | Request body string                              |
+
+Batch request headers are forwarded to each sub-request. Body item headers override batch headers.
+
+If one or more requests hit a `turnstile` route, Turnstile validation runs once and the result is shared across all matching requests in the batch.
+
+The response is a JSON array where each element corresponds to the request at the same index:
+
+```json
+[
+  {
+    "status": 200,
+    "statusText": "OK",
+    "headers": { "content-type": "application/json" },
+    "body": { "id": 1, "name": "alice" }
+  },
+  {
+    "status": 201,
+    "statusText": "Created",
+    "headers": { "content-type": "application/json" },
+    "body": { "id": 42, "name": "new item" }
+  }
+]
+```
+
+`body` is automatically parsed as JSON when the response `content-type` includes `application/json`. Otherwise it is returned as a raw string.
+
 ## Local Development
 
 Required [Bun](https://bun.sh/) as a package manager and JS runtime.

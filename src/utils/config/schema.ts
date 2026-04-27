@@ -1,6 +1,6 @@
 import z from "zod";
 
-const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
+export const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
 const proxyModeSchema = z.enum(["bypass", "block", "turnstile"]);
 
 export type HttpMethod = z.infer<typeof httpMethodSchema>;
