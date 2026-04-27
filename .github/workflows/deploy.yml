@@ -3,6 +3,8 @@ name: Deploy Punch Up Instance
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
 
 env:
