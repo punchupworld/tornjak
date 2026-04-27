@@ -13,6 +13,13 @@ flowchart LR
   TJ -->|Response| FE
 ```
 
+- **Turnstile-aware proxy** — validates Cloudflare Turnstile tokens before forwarding
+- **YAML-configured** — loads `*.yml`/`*.yaml` from `configs/` directory, auto-reloads on file changes
+- **Route matching** — per-route modes: `bypass`, `block`, or `turnstile`; match by HTTP method and glob path patterns
+- **Request forwarding** — proxies matched requests to configured `destinationUrl` with custom headers
+- **Batching** — `POST /batch/{slug}` to send multiple requests atomically with shared Turnstile validation
+- **Token caching** — optional `cf-turnstile-cache-ms` header caches successful validation
+
 ## Run With Docker
 
 Build the image:
