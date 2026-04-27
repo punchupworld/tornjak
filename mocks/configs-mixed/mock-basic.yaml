@@ -1,0 +1,17 @@
+slug: app-proxy
+destinationUrl: https://example.com
+headers:
+  x-powered-by: tornjak
+  x-env: test
+turnstileSecret: secret-basic
+routes:
+  - methods:
+      - GET
+    paths:
+      - /api/*
+    mode: bypass
+  - methods:
+      - POST
+    paths:
+      - /auth/*
+    mode: turnstile

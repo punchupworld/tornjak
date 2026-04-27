@@ -107,7 +107,7 @@ describe("readConfigsFromDirectory", () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
 
     try {
-      const configs = await readConfigsFromDirectory("mocks/configs");
+      const configs = await readConfigsFromDirectory("mocks/configs-mixed");
 
       expect(configs).toHaveLength(2);
       expect(configs.map((config) => config.slug).sort()).toEqual(["admin-proxy", "app-proxy"]);
